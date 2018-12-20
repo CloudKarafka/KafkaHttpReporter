@@ -1,0 +1,15 @@
+language: clojure
+clojure:
+- 1.9.0
+script: lein test && lein uberjar
+addons:
+  artifacts:
+    working_dir: target/uberjar
+    paths:
+    - $(ls *standalone.jar | tr "\n" ":")
+    - $(ls target/uberjar/*standalone.jar | tr "\n" ":")
+    target_paths:
+    - "/kafka-http-reporter/$TRAVIS_BRANCH"
+notifications:
+  slack:
+    secure: T3TtvfbEIO/369wZCAk2sPKsvvIkR1Jq5zTI9oLCLeRDr0LnWm+iPBWWpQ1k/Hkn29tukeOLgPj0/9Oq0dPd9Wj2krmmv7OSirveaWC1+s8C1CYhEpzc2JWKYuHFwbyWOIXkyRl+mUEhZOdgCAP74WRm1DT7cH4U7zJIuuqxFhU8l1rEfuosmQUAWSy+d9rh7CErCQCH7/W9ST/x2z0wolZv4bsYMWRP0A16zUJMySSTqNDI3FidCnfpv+QVLsvsYAqMyxjY44Mkxp92W6oBcelJkc40T447x2eQywdtMSV3jWnBq/8tuTzvj+nBu4KG2DdjdihuOhQKpb6Zz3CvivPj+pC8QelYILx0bYwkZt6ku5CdsSgc5MFY2hWAIQNYyUOr6zHzcNlut56NQ7CLg95BVx4266OvYNoJWC1zX8c4Jc3YtrbteYj2MXyB6ZZXejA1304SNza8Ma8h4utMh1a221Tin3wUTCvyzCGLBuuXrTWi4JwXrnuEtHlMmov2EiMP/zAmj4RpADKfDMZfEKrHjYnnnlVIzg8gQJi0xakC5SHyd36gxL5eSpmvhJKrG0kh6J7HOx/bACXQS4Oj3UbV8b9XeDhOWeWSdoj7Ld9787EHO7d+h/D2ElEdxOJDsfBsXXP25S/XR0YpXOl1vwbbV5OEav7D/G3d61dXj/g=
