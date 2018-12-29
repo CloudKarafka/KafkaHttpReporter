@@ -1,8 +1,6 @@
 (ns cloudkarafka.jmx
   (:require [clojure.java.jmx :as jmx]))
 
-
-
 (defn jmx-values
   ([mbean attrs] (jmx-values mbean attrs nil))
   ([mbean attrs group]
@@ -13,10 +11,9 @@
                    ;a (if group (str attr "_" (.getKeyProperty mbean group)) attr)
                    keys (into {} (map #(vector (.getKey %) (.getValue %)) (.entrySet (.getKeyPropertyList mbean))))]]
          (if (map? v)
-           (for [[k v] v
-                 :let [kk (name k)]]
-             (assoc keys :type kk :value v))
-           (assoc keys :value v))))
+           (for [[k v] v]
+             (assoc keys :type (name k) :value v :attribute attr))
+           (assoc keys :value v :attribute attr))))
      (catch javax.management.InstanceNotFoundException e))))
 
 (defn group-metrics
