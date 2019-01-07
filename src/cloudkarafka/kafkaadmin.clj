@@ -34,8 +34,9 @@
                (member-list group-id desc group-offset log-offset)))))
 
 (defn consumer-groups-old
-  [client consumer]
-  (let [res (java.util.LinkedList.)]
+  [url consumer]
+  (let [client (kafka.admin.AdminClient/createSimplePlaintext url)
+        res (java.util.LinkedList.)]
     ($/for [group (.listAllConsumerGroupsFlattened client)
             :let [summary (.describeConsumerGroup client (.groupId group) 0)
                   group-offset (.listGroupOffsets client (.groupId group))]]
@@ -58,10 +59,6 @@
         :none))
     res))
 
-(defn admin-client-old ^kafka.admin.AdminClient
-  [props]
-  (kafka.admin.AdminClient/createSimplePlaintext (:bootstrap.servers props)))
-
 (defn admin-client ^org.apache.kafka.clients.admin.AdminClient
   [props]
   (org.apache.kafka.clients.admin.AdminClient/create (map->props props)))
@@ -77,6 +74,6 @@
 
 (comment
 
-  (consumer-groups-old (admin-client-old {:bootstrap.servers "127.0.0.1:9092"}) (kafka-consumer {:bootstrap.servers "127.0.0.1:9092"}))
+  (consumer-groups-old  "127.0.0.1:9092" (kafka-consumer {:bootstrap.servers "127.0.0.1:9092"}))
 
   )

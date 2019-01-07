@@ -36,7 +36,11 @@
    (let [s @state
          member-list (if (modern-kafka? (:kafka-version s))
                        (ka/consumer-groups (:admin-client s) (:consumer s))
-                       (ka/consumer-groups-old (:admin-client s) (:consumer s)))]
+                       (let [plaintext-url (-> (:kafka-config s)
+                                               :listeners 
+                                               (listener-uri  "PLAINTEXT")
+                                               first)]
+                         (ka/consumer-groups-old plaintext-url (:consumer s))))]
      (group-by group-by-fn member-list))))
 
 (def handler
@@ -77,9 +81,8 @@
     (println "-------------- KAFKA-VERSION" kafka-version)
     (reset! state {:kafka-version kafka-version
                    :kafka-config parsed-config
-                   :admin-client (if (modern-kafka? kafka-version)
-                                   (ka/admin-client props)
-                                   (ka/admin-client-old props))
+                   :admin-client (when (modern-kafka? kafka-version)
+                                   (ka/admin-client props))
                    :consumer (ka/kafka-consumer props)})))
 
 (defn -init [this metrics]
