@@ -4,10 +4,10 @@ clojure:
 script: lein test && lein uberjar
 addons:
   artifacts:
-    working_dir: target/uberjar
+    working_dir: target
     paths:
     - $(ls *standalone.jar | tr "\n" ":")
-    - $(ls target/uberjar/*standalone.jar | tr "\n" ":")
+    - $(ls target/*standalone.jar | tr "\n" ":")
     target_paths:
     - "/kafka-http-reporter/$TRAVIS_BRANCH"
 notifications:
