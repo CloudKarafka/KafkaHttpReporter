@@ -35,29 +35,29 @@
 
 (defn consumer-groups-old
   [url consumer]
-  (let [client (kafka.admin.AdminClient/createSimplePlaintext url)
-        res (java.util.LinkedList.)]
-    ($/for [group (.listAllConsumerGroupsFlattened client)
-            :let [summary (.describeConsumerGroup client (.groupId group) 0)
-                  group-offset (.listGroupOffsets client (.groupId group))]]
-      ($/if-let [members (.consumers summary)]
-        ($/for [member members
-                :let [log-end-offsets (.endOffsets consumer (scala.collection.JavaConversions/asJavaCollection (.assignment member)))]]
-          ($/for [toppar (.assignment member)
-                  :let [current-offset (get (scala.collection.JavaConversions/mapAsJavaMap group-offset) toppar)
-                        log-end (get log-end-offsets toppar)]]
-            (.add res {:state (.state summary)
-                       :group (.groupId group)
-                       :topic (.topic toppar)
-                       :partition (.partition toppar)
-                       :current_offset current-offset
-                       :log_end_offset log-end
-                       :lag (and log-end current-offset (- log-end current-offset))
-                       :consumerid (.consumerId member)
-                       :clientid (.clientId member)
-                       :host (.host member)})))
-        :none))
-    res))
+  (with-open [client (kafka.admin.AdminClient/createSimplePlaintext url)]
+    (let [res (java.util.LinkedList.)]
+      ($/for [group (.listAllConsumerGroupsFlattened client)
+              :let [summary (.describeConsumerGroup client (.groupId group) 0)
+                    group-offset (.listGroupOffsets client (.groupId group))]]
+        ($/if-let [members (.consumers summary)]
+          ($/for [member members
+                  :let [log-end-offsets (.endOffsets consumer (scala.collection.JavaConversions/asJavaCollection (.assignment member)))]]
+            ($/for [toppar (.assignment member)
+                    :let [current-offset (get (scala.collection.JavaConversions/mapAsJavaMap group-offset) toppar)
+                          log-end (get log-end-offsets toppar)]]
+              (.add res {:state (.state summary)
+                         :group (.groupId group)
+                         :topic (.topic toppar)
+                         :partition (.partition toppar)
+                         :current_offset current-offset
+                         :log_end_offset log-end
+                         :lag (and log-end current-offset (- log-end current-offset))
+                         :consumerid (.consumerId member)
+                         :clientid (.clientId member)
+                         :host (.host member)})))
+          :none))
+      res)))
 
 (defn admin-client ^org.apache.kafka.clients.admin.AdminClient
   [props]
