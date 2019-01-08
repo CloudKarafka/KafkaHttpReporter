@@ -67,10 +67,12 @@
             :body (json/write-value-as-string c mapper)}
            {:status 404
             :body "No config"}))
+
     (GET "/consumer-groups" []
          {:status 200
           :headers {"content-type" "application/json"}
           :body (json/write-value-as-string (consumers) mapper)})
+
     (route/not-found "Not found"))))
 
 (defn -configure [this config]
@@ -78,7 +80,6 @@
         uris (listener-uri (:listeners parsed-config) "PLAINTEXT")
         props {:bootstrap.servers (first uris)}
         kafka-version (org.apache.kafka.common.utils.AppInfoParser/getVersion)]
-    (println "-------------- KAFKA-VERSION" kafka-version)
     (reset! state {:kafka-version kafka-version
                    :kafka-config parsed-config
                    :admin-client (when (modern-kafka? kafka-version)
