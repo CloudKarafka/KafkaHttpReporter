@@ -4,7 +4,9 @@
 (defn map->props
   [m]
   (let [props (java.util.Properties.)]
-    (doseq [[k v] m] (.put props (name k) v))
+    (doseq [[k v] m
+            :when (and k v)]
+      (.put props (name k) v))
     props))
 
 (defn member-list [group-name desc group-offset log-offset]
