@@ -16,6 +16,11 @@ It exposes an HTTP API that is used by https://github.com/CloudKarafka/cloudkara
 * `lein uberjar` produces a standalone jar file in `target/`
 * Follow the same procedure as above to install it
 
+## Release
+
+* Update the version number in `project.clj`
+* Commit the change and tag it with the same version 
+* Push to github, travis CI will generate the release artifact
 
 ## Versioning
 
