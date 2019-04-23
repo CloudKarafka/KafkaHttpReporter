@@ -88,7 +88,7 @@
 
 (defn -init [this metrics]
   (let [config (:kafka-config @state)
-        port (Integer/parseInt (or (:kafka_http_reporter.port config) "19092"))]
+        port (Integer/parseInt (or (:kafkahttpreporter.port config) "19092"))]
     (println "[INFO] KafkaHttpReporter: Starting HTTP server on port " port )
     (swap! state assoc :http-server (http/start-server handler {:port port}))))
 
