@@ -11,19 +11,30 @@
 
 (defn member-list [group-name desc group-offset log-offset]
   (for [member (.members desc)
-        toppar (.topicPartitions (.assignment member))
-        :let [group-partitions (get group-offset toppar)
-              go (when group-partitions (.offset group-partitions))
-              lo (get log-offset toppar)]]
-    {:group group-name
-     :topic (.topic toppar)
-     :partition (.partition toppar)
-     :current_offset go,
-     :log_end_offset lo,
-     :lag (when go (- lo go)),
-     :clientid (.clientId member),
-     :consumerid (.consumerId member),
-     :host (.host member)}))
+        :let [ toppar (.topicPartitions (.assignment member)) ]]
+        (if (empty? toppar)
+          {:group group-name
+           :topic nil,
+           :partition nil,
+           :current_offset nil,
+           :log_end_offset nil,
+           :lag nil,
+           :clientid (.clientId member),
+           :consumerid (.consumerId member),
+           :host (.host member)}
+          (for [tp toppar
+            :let [group-partitions (get group-offset tp)
+                  go (when group-partitions (.offset group-partitions))
+                  lo (get log-offset tp)]]
+        {:group group-name
+         :topic (.topic tp)
+         :partition (.partition tp)
+         :current_offset go,
+         :log_end_offset lo,
+         :lag (when go (- lo go)),
+         :clientid (.clientId member),
+         :consumerid (.consumerId member),
+         :host (.host member)}))))
 
 (defn consumer-groups
   [client consumer]
