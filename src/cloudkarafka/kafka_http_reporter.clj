@@ -6,7 +6,9 @@
             [jsonista.core :as json]
             [compojure.core :refer :all]
             [compojure.route :as route]
-            [ring.middleware.params :as params])
+            [ring.middleware.params :as params]
+            [cloudkarafka.tcp :as tcp]
+            [cloudkarafka.fast-jmx :as fjmx])
   (:gen-class
    :implements [org.apache.kafka.common.metrics.MetricsReporter]
    :constructors {[] []}))
@@ -75,6 +77,7 @@
 
     (route/not-found "Not found"))))
 
+
 (defn -configure [this config]
   (let [parsed-config (into {} (map (fn [[k v]] [(keyword k) v]) config))
         uris (listener-uri (:listeners parsed-config) "PLAINTEXT")
@@ -88,14 +91,23 @@
 
 (defn -init [this metrics]
   (let [config (:kafka-config @state)
-        port (Integer/parseInt (or (:kafka_http_reporter.port config) "19092"))]
-    (println "[INFO] KafkaHttpReporter: Starting HTTP server on port " port )
-    (swap! state assoc :http-server (http/start-server handler {:port port}))))
+        http-port (Integer/parseInt (or (:kafka_http_reporter.port config) "19092"))
+        tcp-port (Integer/parseInt (or (:kafka_http_reporter.tcp_port config) "19500"))
+        tcp-server (tcp/tcp-server :port tcp-port :handler (tcp/wrap-io fjmx/handler))]
+    (println "[INFO] KafkaHttpReporter: Starting HTTP server on port " http-port )
+    (swap! state assoc :http-server (http/start-server handler {:port http-port}))
+    (println "[INFO] KafkaHttpReporter: Starting TCP server on port " tcp-port)
+    (swap! state assoc :tcp-server (tcp/start tcp-server))))
 
 (defn -metricChange [this metric])
 (defn -metricRemoval [this metric])
 
 (defn -close [this]
-  (when-let [^java.io.Closeable s (:http-server @state)]
-    (println "[INFO] KafkaHttpReporter: Closing HTTP server")
-    (.close s)))
+  ;; No need to close this
+  #_(let [s @state]
+    (when-let [^java.io.Closeable server (:http-server s)]
+      (println "[INFO] KafkaHttpReporter: Closing HTTP server")
+      (.close server))
+    (when-let [server (:tcp-server s)]
+      (println "[INFO] KafkaHttpReporter: Closing TCP server")
+      (tcp/stop server))))
