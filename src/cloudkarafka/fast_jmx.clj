@@ -3,9 +3,7 @@
             [clojure.string :as str])
   (:import [java.io Reader Writer]
            [javax.management ObjectName]
-           [java.util Map$Entry])
-  ;(:gen-class)
-  )
+           [java.util Map$Entry]))
 
 (set! *warn-on-reflection* true)
 
@@ -34,13 +32,13 @@
    (double? v)
    (boolean? v)))
 
-(defn f
-  ([m] (f "" m))
+(defn build-value-map
+  ([m] (build-value-map "" m))
   ([p m]
    (reduce
     (fn [res [k v]]
       (if (map? v)
-        (merge res (f (str p (name k) ".") v))
+        (merge res (build-value-map (str p (name k) ".") v))
         (if (valid-value? v)
           (assoc res (str p (name k)) v)
           res)))
@@ -60,10 +58,8 @@
       {})))
 
 (defn jmx-values [mbean]
-  (println "REP" "beans..." mbean (jmx/mbean mbean))
   (let [params (mbean-params mbean)
-        values (f "" (jmx/mbean mbean))]
-    (println "REP" "res." params values)
+        values (build-value-map "" (jmx/mbean mbean))]
     (merge params values)))
 
 (defn query [^String bean]
@@ -88,18 +84,11 @@
 
 (defn handler [^Reader in ^Writer out]
   (doseq [ln (line-seq (java.io.BufferedReader. in))]
-    (do (println "REP" "line" ln)
-        (let [[cmd bean] (parse-line ln)]
-          (println "REP" "cmd" cmd bean)
-          (when-not (empty? cmd)
-            (println "REP" "run")
-            (doseq [res (exec cmd bean)
-                    :when (seq res)]
-              (.write out (format-result res))
-              (.write out "\n")))
-          (.write out "\n")
-          (.flush out)))))
-
-
-
-
+    (let [[cmd bean] (parse-line ln)]
+      (when-not (empty? cmd)
+        (doseq [res (exec cmd bean)
+                :when (seq res)]
+          (.write out (format-result res))
+          (.write out "\n")))
+      (.write out "\n")
+      (.flush out))))
