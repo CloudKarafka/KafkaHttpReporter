@@ -1,86 +1,73 @@
-(ns cloudkarafka.tcp
-  "Functions for creating a threaded TCP server."
-  (:require [clojure.java.io :as io])
-  (:import [java.net InetAddress ServerSocket Socket SocketException]))
+(ns cloudkarafka.cmds
+  (:require [clojure.java.jmx :as jmx]
+            [cloudkarafka.kafkaadmin :as ka]
+            [clojure.string :as str])
+  (:import java.io.Writer
+           [javax.management ObjectName]
+           [java.util Map$Entry])
+  (:gen-class))
 
-(defn- server-socket [server]
-  (ServerSocket.
-   (:port server)
-   (:backlog server)
-   (InetAddress/getByName (:host server))))
+(defn write-err [str]
+  (let [^Writer o *err*]
+    (.write o (format "%s\n" str))
+    (.flush o)))
 
-(defn tcp-server
-  "Create a new TCP server. Takes the following keyword arguments:
-    :host    - the host to bind to (defaults to 127.0.0.1)
-    :port    - the port to bind to
-    :handler - a function to handle incoming connections, expects a socket as
-               an argument
-    :backlog - the maximum backlog of connections to keep (defaults to 50)"
-  [& {:as options}]
-  {:pre [(:port options)
-         (:handler options)]}
-  (merge
-   {:host "127.0.0.1"
-    :backlog 50
-    :socket (atom nil)
-    :connections (atom #{})}
-   options))
+(defn- mbean-keys->map [^Map$Entry e]
+  (vector (.getKey e) (.getValue e)))
 
-(defn close-socket [server socket]
-  (swap! (:connections server) disj socket)
-  (when-not (.isClosed socket)
-    (.close socket)))
+(defn valid-value? [v]
+  (or
+   (string? v)
+   (int? v)
+   (double? v)
+   (boolean? v)))
 
-(defn- open-server-socket [server]
-  (reset! (:socket server)
-          (server-socket server)))
+(defn build-value-map
+  ([m] (build-value-map "" m))
+  ([p m]
+   (reduce
+    (fn [res [k v]]
+      (if (map? v)
+        (merge res (build-value-map (str p (name k) ".") v))
+        (if (valid-value? v)
+          (assoc res (str p (name k)) v)
+          res)))
+    {}
+    m)))
 
-(defn- accept-connection
-  [{:keys [handler connections socket] :as server}]
-  (let [conn (.accept @socket)]
-    (swap! connections conj conn)
-    (future
-      (try (handler conn)
-           (finally (close-socket server conn))))))
+(defn mbean-params [^ObjectName mbean]
+  (let [kpl (.getKeyPropertyList mbean)
+        entries (.entrySet kpl)]
+    (into {} (map mbean-keys->map entries))))
 
-(defn running?
-  "True if the server is running."
-  [server]
-  (if-let [socket @(:socket server)]
-    (not (.isClosed socket))))
+(defn bean-value [mbean]
+  (try
+    (jmx/mbean mbean)
+    (catch javax.management.OperationsException e
+      (write-err (.getMessage e))
+      {})))
 
-(defn start
-  "Start a TCP server going."
-  [server]
-  (open-server-socket server)
-  (future
-    (while (running? server)
-      (try
-        (accept-connection server)
-        (catch SocketException _)))))
+(defn jmx-values [mbean]
+  (let [params (mbean-params mbean)
+        values (build-value-map "" (jmx/mbean mbean))]
+    (merge params values)))
 
-(defn stop
-  "Stop the TCP server and close all open connections."
-  [server]
-  (doseq [socket @(:connections server)]
-    (close-socket server socket))
-  (.close @(:socket server)))
+(defn query [^String bean]
+  (cond (.contains bean "*") (doall (map jmx-values (jmx/mbean-names bean)))
+        :else (list (jmx-values (jmx/as-object-name bean)))))
 
-(defn wrap-streams
-  "Wrap a handler so that it expects an InputStream and an OutputStream
-  as arguments, rather than a raw Socket."
-  [handler]
-  (fn [socket]
-    (with-open [input  (.getInputStream socket)
-                output (.getOutputStream socket)]
-      (handler input output))))
+(defmulti exec (fn [a _] a))
 
-(defn wrap-io
-  "Wrap a handler so that it expects a Reader and Writer as arguments, rather
-  than a raw Socket."
-  [handler]
-  (wrap-streams
-   (fn [input output]
-     (with-open [reader (io/reader input)
-                 writer (io/writer output)]
-       (handler reader writer)))))
+(defmethod exec "jmx" [_ bean]
+  (query bean))
+
+(defmethod exec "version" [_ bean]
+  (list {bean "2.3.1"}))
+
+(defmethod exec "groups" [_ bean]
+  (ka/consumers))
+
+(defmethod exec :default [_ _]
+  (list {}))
+
+

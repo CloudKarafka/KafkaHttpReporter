@@ -1,26 +1,15 @@
-(ns cloudkarafka.fast-jmx
+(ns cloudkarafka.cmds
   (:require [clojure.java.jmx :as jmx]
+            [cloudkarafka.kafkaadmin :as ka]
             [clojure.string :as str])
-  (:import [java.io Reader Writer]
+  (:import java.io.Writer
            [javax.management ObjectName]
            [java.util Map$Entry]))
-
-(set! *warn-on-reflection* true)
 
 (defn write-err [str]
   (let [^Writer o *err*]
     (.write o (format "%s\n" str))
     (.flush o)))
-
-(defn parse-line [line]
-  (let [t (str/trim line)
-        [cmd bean] (str/split t #" ")]
-    [cmd bean]))
-
-(defn parse-host [str]
-  (let [[host port] (str/split str #":")]
-    {:host host
-     :port (Integer/parseInt port)}))
 
 (defn- mbean-keys->map [^Map$Entry e]
   (vector (.getKey e) (.getValue e)))
@@ -66,10 +55,13 @@
   (cond (.contains bean "*") (doall (map jmx-values (jmx/mbean-names bean)))
         :else (list (jmx-values (jmx/as-object-name bean)))))
 
-(defn ^String format-result [values]
+(defn format-result-row [values]
   (->> values
-       (map (fn [[k v]] (str k "=" v)))
+       (map (fn [[k v]] (str (name k) "=" v)))
        (str/join ";;")))
+
+(defn format-result [values]
+  (str/join "\n" (map format-result-row values)))
 
 (defmulti exec (fn [a _] a))
 
@@ -77,18 +69,14 @@
   (query bean))
 
 (defmethod exec "v" [_ bean]
-  (list {bean "2.3.1"}))
+  (list (case bean
+          "kafka" {"kafka" (org.apache.kafka.common.utils.AppInfoParser/getVersion)}
+          "plugin" {"plugin" "1.0.0"})))
+
+(defmethod exec "groups" [_ group]
+  (ka/consumers))
 
 (defmethod exec :default [_ _]
   (list {}))
 
-(defn handler [^Reader in ^Writer out]
-  (doseq [ln (line-seq (java.io.BufferedReader. in))]
-    (let [[cmd bean] (parse-line ln)]
-      (when-not (empty? cmd)
-        (doseq [res (exec cmd bean)
-                :when (seq res)]
-          (.write out (format-result res))
-          (.write out "\n")))
-      (.write out "\n")
-      (.flush out))))
+
