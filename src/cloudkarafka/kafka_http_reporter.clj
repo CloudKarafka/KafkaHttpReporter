@@ -57,11 +57,14 @@
   (let [s (str/trim (String. in))
         [cmd bean] (str/split s #" ")]
     (when-not (empty? cmd)
-      (str (format-result (exec cmd bean)) "\n\n"))))
+      (let [res (exec cmd bean)]
+        (str (when res (format-result res)) "\n")))))
 
 (defn -configure [_ config]
+  (println "[INFO] KafkaHttpReporter: configure")
   (let [parsed-config (into {} (map (fn [[k v]] [(keyword k) v]) config))
-        uris (util/listener-uri (:listeners parsed-config) "PLAINTEXT")
+        listener-name (or (:security.inter.broker.protocol parsed-config) "PLAINTEXT")
+        uris (util/listener-uri (:listeners parsed-config) listener-name)
         props {:bootstrap.servers (first uris)}
         kafka-version (org.apache.kafka.common.utils.AppInfoParser/getVersion)]
     (reset! util/state {:kafka-version kafka-version
@@ -72,23 +75,18 @@
 
 (defn -init [_ _]
   (let [config (:kafka-config @util/state)
-        http-port (Integer/parseInt (or (:kafka_http_reporter.port config) "19092"))
-        tcp-port (Integer/parseInt (or (:kafka_http_reporter.tcp_port config) "19500"))
-        tcp-server (tcp/start-server (wrapper tcp-handler) {:port tcp-port})]
+        http-port (Integer/parseInt (or (:kafka_http_reporter.port config) 
+                                        (:kafkahttpreporter.port config)
+                                        "19092"))
+        tcp-port (Integer/parseInt (or (:kafka_http_reporter.tcp_port config)
+                                       (:kafkahttpreporter.tcp_port config)
+                                       "19500"))]
     (println "[INFO] KafkaHttpReporter: Starting HTTP server on port " http-port )
     (swap! util/state assoc :http-server (http/start-server handler {:port http-port}))
+    
     (println "[INFO] KafkaHttpReporter: Starting TCP server on port " tcp-port)
-    (swap! util/state assoc :tcp-server tcp-server)))
+    (swap! util/state assoc :tcp-server (tcp/start-server (wrapper tcp-handler) {:port tcp-port}))))
 
 (defn -metricChange [_ _])
 (defn -metricRemoval [_ _])
-
-(defn -close [_]
-  ;; No need to close this
-  #_(let [s @state]
-    (when-let [^java.io.Closeable server (:http-server s)]
-      (println "[INFO] KafkaHttpReporter: Closing HTTP server")
-      (.close server))
-    (when-let [server (:tcp-server s)]
-      (println "[INFO] KafkaHttpReporter: Closing TCP server")
-      (tcp/stop server))))
+(defn -close [_])

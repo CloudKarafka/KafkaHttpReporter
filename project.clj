@@ -1,6 +1,6 @@
-(defproject kafka-http-reporter "0.3.3"
+(defproject kafka-http-reporter "0.4.0"
   :description "Expose JMX metrics through a HTTP interface"
-  :url "http://github.com/CloudKarafka/kafka-http-reporter"
+  :url "http://github.com/CloudKarafka/KafkaHttpReporter"
   :license {:name "Apache License 2.0"
             :url "https://github.com/CloudKarafka/KafkaHttpReporter/blob/master/LICENSE"}
   :profiles {:uberjar {:aot :all}

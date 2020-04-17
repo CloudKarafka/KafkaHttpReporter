@@ -2,14 +2,8 @@
   (:require [clojure.java.jmx :as jmx]
             [cloudkarafka.kafkaadmin :as ka]
             [clojure.string :as str])
-  (:import java.io.Writer
-           [javax.management ObjectName]
+  (:import [javax.management ObjectName]
            [java.util Map$Entry]))
-
-(defn write-err [str]
-  (let [^Writer o *err*]
-    (.write o (format "%s\n" str))
-    (.flush o)))
 
 (defn- mbean-keys->map [^Map$Entry e]
   (vector (.getKey e) (.getValue e)))
@@ -39,13 +33,6 @@
         entries (.entrySet kpl)]
     (into {} (map mbean-keys->map entries))))
 
-(defn bean-value [mbean]
-  (try
-    (jmx/mbean mbean)
-    (catch javax.management.OperationsException e
-      (write-err (.getMessage e))
-      {})))
-
 (defn jmx-values [mbean]
   (let [params (mbean-params mbean)
         values (build-value-map "" (jmx/mbean mbean))]
@@ -61,22 +48,28 @@
        (str/join ";;")))
 
 (defn format-result [values]
-  (str/join "\n" (map format-result-row values)))
+  (str
+   (str/join "\n" (map format-result-row values))
+   "\n"))
 
 (defmulti exec (fn [a _] a))
 
 (defmethod exec "jmx" [_ bean]
-  (query bean))
+  (try
+    (when bean
+      (query bean))
+    (catch javax.management.OperationsException e
+      (println e))))
 
 (defmethod exec "v" [_ bean]
-  (list (case bean
-          "kafka" {"kafka" (org.apache.kafka.common.utils.AppInfoParser/getVersion)}
-          "plugin" {"plugin" "1.0.0"})))
+  (case bean
+    "kafka" (list {"kafka" (org.apache.kafka.common.utils.AppInfoParser/getVersion)})
+    :else nil))
 
 (defmethod exec "groups" [_ group]
-  (ka/consumers))
+  (ka/consumers group))
 
 (defmethod exec :default [_ _]
-  (list {}))
+  nil)
 
 

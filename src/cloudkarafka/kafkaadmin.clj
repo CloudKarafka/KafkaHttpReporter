@@ -37,28 +37,33 @@
              :consumerid (.consumerId member),
              :host (.host member)}))))
 
-
 (defn consumer-groups
   ([client consumer]
-   (consumer-groups
-    client
-    consumer
-    (into [] (map #(.groupId %) (.get (.all (.listConsumerGroups client)))))))
+   (consumer-groups client consumer nil))
   ([client consumer group-ids]
-   (let [descs (.get (.all (.describeConsumerGroups client group-ids)))]
+   (let [group-ids (or group-ids
+                       (into [] (map #(.groupId %) (.get (.all (.listConsumerGroups client))))))
+         descs (.get (.all (.describeConsumerGroups client group-ids)))]
      (flatten (for [group-id group-ids
                     :let [desc (get descs group-id)
                           group-offset (.get (.partitionsToOffsetAndMetadata (.listConsumerGroupOffsets client group-id)))
                           log-offset (.endOffsets consumer (mapv key group-offset))]]
                 (member-list group-id desc group-offset log-offset))))))
 
+(defn filtered-groups [client group-ids]
+  (let [all-group-ids (map #(.groupId %) (.listAllConsumerGroupsFlattened client))
+        wanted (set group-ids)]
+    (if (empty? wanted)
+      all-group-ids
+      (filter #(contains? wanted %) all-group-ids))))
+
 (defn consumer-groups-old
-  ([url consumer]
+  ([url consumer group-ids]
    (with-open [client (kafka.admin.AdminClient/createSimplePlaintext url)]
      (let [res (java.util.LinkedList.)]
-       ($/for [group (.listAllConsumerGroupsFlattened client)
-               :let [summary (.describeConsumerGroup client (.groupId group) 0)
-                     group-offset (.listGroupOffsets client (.groupId group))]]
+       ($/for [group-id (filtered-groups client group-ids)
+               :let [summary (.describeConsumerGroup client group-id 0)
+                     group-offset (.listGroupOffsets client group-id)]]
          ($/if-let [members (.consumers summary)]
            ($/for [member members
                    :let [log-end-offsets (.endOffsets consumer (scala.collection.JavaConversions/asJavaCollection (.assignment member)))]]
@@ -66,7 +71,7 @@
                      :let [current-offset (get (scala.collection.JavaConversions/mapAsJavaMap group-offset) toppar)
                            log-end (get log-end-offsets toppar)]]
                (.add res {:state (.state summary)
-                          :group (.groupId group)
+                          :group group-id
                           :topic (.topic toppar)
                           :partition (.partition toppar)
                           :current_offset current-offset
@@ -92,24 +97,18 @@
     (org.apache.kafka.clients.consumer.KafkaConsumer. props)))
 
 (defn consumers
-  ([]
-   (let [s @util/state]
-     (if (util/modern-kafka? (:kafka-version s))
-       (consumer-groups (:admin-client s) (:consumer s))
-       (let [plaintext-url (-> (:kafka-config s)
-                               :listeners 
-                               (util/listener-uri  "PLAINTEXT")
-                               first)]
-         (consumer-groups-old plaintext-url (:consumer s))))))
+  ([] (consumers nil))
   ([group]
-   (let [s @util/state]
+   (let [s @util/state
+         kafka-config (:kafka-config s)]
      (if (util/modern-kafka? (:kafka-version s))
-       (consumer-group (:admin-client s) (:consumer s) group)
-       (let [plaintext-url (-> (:kafka-config s)
+       (consumer-groups (:admin-client s) (:consumer s) group)
+       (let [plaintext-url (-> kafka-config
                                :listeners 
-                               (util/listener-uri  "PLAINTEXT")
+                               (util/listener-uri
+                                (or (:security.inter.broker.protocol kafka-config) "PLAINTEXT"))
                                first)]
-         (consumer-group-old plaintext-url (:consumer s) group))))))
+         (consumer-groups-old plaintext-url (:consumer s) group))))))
 
 (comment
   (consumer-groups-old
