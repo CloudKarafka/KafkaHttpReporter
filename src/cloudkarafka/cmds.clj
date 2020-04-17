@@ -1,6 +1,7 @@
 (ns cloudkarafka.cmds
   (:require [clojure.java.jmx :as jmx]
             [cloudkarafka.kafkaadmin :as ka]
+            [cloudkarafka.util :as util]
             [clojure.string :as str])
   (:import [javax.management ObjectName]
            [java.util Map$Entry]))
@@ -59,15 +60,17 @@
     (when bean
       (query bean))
     (catch javax.management.OperationsException e
-      (println e))))
+      (println "[WARN] KafkaHttpReporter jmx_error " (str e) (.getMessage e)))))
 
 (defmethod exec "v" [_ bean]
   (case bean
-    "kafka" (list {"kafka" (org.apache.kafka.common.utils.AppInfoParser/getVersion)})
-    :else nil))
+    "kafka" (list {"kafka" util/kafka-version})
+    nil))
 
-(defmethod exec "groups" [_ group]
-  (ka/consumers group))
+(defmethod exec "groups" [_ groups]
+  (if (seq groups)
+    (ka/consumers (str/split groups #","))
+    (ka/consumers)))
 
 (defmethod exec :default [_ _]
   nil)

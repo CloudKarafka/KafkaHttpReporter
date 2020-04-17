@@ -6,15 +6,19 @@
 
 (def state (atom nil))
 
+(def kafka-version ( org.apache.kafka.common.utils.AppInfoParser/getVersion))
+
 (defn listener-uri [listeners type]
   (->> (str/split listeners #",")
        (map #(str/split % #"://"))
        (filter #(= (first %) type))
        (map second)))
 
-(defn modern-kafka? [version]
-  (let [major (-> version
-                  (str/split #"\.")
-                  first
-                  Integer/parseInt)]
-    (>= major 2)))
+(defn modern-kafka?
+  ([] (modern-kafka? kafka-version))
+  ([version]
+   (let [major (-> version
+                   (str/split #"\.")
+                   first
+                   Integer/parseInt)]
+     (>= major 2))))

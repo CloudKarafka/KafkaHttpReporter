@@ -24,7 +24,7 @@
          {:status 200 :headers {"content-type" "text/plain"} :body "0.1.0"})
 
     (GET "/kafka-version" []
-         {:status 200 :headers {"content-type" "text/plain"} :body (:kafka-version @util/state)})
+         {:status 200 :headers {"content-type" "text/plain"} :body (util/kafka-version)})
 
     (GET "/jmx" [bean group attrs]
          (if-let [values (jmx/query bean group (str/split attrs #","))]
@@ -58,20 +58,20 @@
         [cmd bean] (str/split s #" ")]
     (when-not (empty? cmd)
       (let [res (exec cmd bean)]
-        (str (when res (format-result res)) "\n")))))
+        (str (when (seq res) (format-result res)) "\n")))))
+
+(defn props-from-config [config]
+  (let [ listener-name (or (:security.inter.broker.protocol config) "PLAINTEXT")
+        uris (util/listener-uri (:listeners config) listener-name)]
+    {:bootstrap.servers (first uris)}))
 
 (defn -configure [_ config]
   (println "[INFO] KafkaHttpReporter: configure")
   (let [parsed-config (into {} (map (fn [[k v]] [(keyword k) v]) config))
-        listener-name (or (:security.inter.broker.protocol parsed-config) "PLAINTEXT")
-        uris (util/listener-uri (:listeners parsed-config) listener-name)
-        props {:bootstrap.servers (first uris)}
-        kafka-version (org.apache.kafka.common.utils.AppInfoParser/getVersion)]
-    (reset! util/state {:kafka-version kafka-version
-                   :kafka-config parsed-config
-                   :admin-client (when (util/modern-kafka? kafka-version)
-                                   (ka/admin-client props))
-                   :consumer (ka/kafka-consumer props)})))
+        props (props-from-config parsed-config)]
+    (reset! util/state {:kafka-config parsed-config
+                        :admin-client (when (util/modern-kafka?)
+                                        (ka/admin-client props))})))
 
 (defn -init [_ _]
   (let [config (:kafka-config @util/state)
