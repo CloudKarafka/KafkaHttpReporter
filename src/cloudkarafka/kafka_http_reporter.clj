@@ -24,7 +24,7 @@
          {:status 200 :headers {"content-type" "text/plain"} :body "0.1.0"})
 
     (GET "/kafka-version" []
-         {:status 200 :headers {"content-type" "text/plain"} :body (util/kafka-version)})
+         {:status 200 :headers {"content-type" "text/plain"} :body util/kafka-version})
 
     (GET "/jmx" [bean group attrs]
          (if-let [values (jmx/query bean group (str/split attrs #","))]
